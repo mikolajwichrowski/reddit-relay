@@ -1,0 +1,7 @@
+// Deliberate demo fixtures, never presented as live Reddit posts.
+export const demoPosts = [
+{id:'demo1',subreddit:'Outdoors',author:'demo',title:'Sometimes the best plan is to take the long way home.',score:2840,num_comments:126,created_utc:Date.now()/1000-7200,url:'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=1000&auto=format&fit=crop&q=85',post_hint:'image',link_flair_text:'Photography',selftext:''},
+{id:'demo2',subreddit:'CozyPlaces',author:'demo',title:'A slow morning, a good book, and absolutely nowhere to be.',score:1600,num_comments:84,created_utc:Date.now()/1000-14400,url:'https://images.unsplash.com/photo-1442512595331-e89e73853f31?w=1000&auto=format&fit=crop&q=85',post_hint:'image',link_flair_text:'Little moments',selftext:''},
+{id:'demo3',subreddit:'AskReddit',author:'demo',title:'What’s a small thing that made your day a little better?',score:932,num_comments:257,created_utc:Date.now()/1000-18000,is_self:true,selftext:'A conversation worth slowing down for. This is an example text post. Choose a community or search above to try live browsing.',url:'https://www.reddit.com/r/AskReddit/'},
+{id:'demo4',subreddit:'videos',author:'demo',title:'A window into another world — Big Buck Bunny',score:721,num_comments:48,created_utc:Date.now()/1000-21000,url:'https://www.youtube.com/watch?v=aqz-KE-bpKQ',link_flair_text:'Video',selftext:'Example of a click-to-load external video. Playback connects directly to YouTube.'}
+];
