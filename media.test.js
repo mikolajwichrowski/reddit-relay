@@ -20,3 +20,10 @@ test('query encoding, mature content, and authenticated requests',()=>{
  assert.equal(u.hostname,'oauth.reddit.com');assert.equal(u.searchParams.get('q'),'cats & dogs');assert.equal(u.searchParams.get('include_over_18'),'on');assert.equal(u.searchParams.get('after'),'t3_a');
  assert.equal(new URL(listingURL({feed:'EarthPorn',sort:'top'})).pathname,'/r/EarthPorn/top.json');
 });
+
+test('animated previews, extensionless images, and self-post attachments stay inline',()=>{
+ assert.equal(mediaFor({url:'https://i.redd.it/a.gif',preview:{images:[{variants:{mp4:{source:{url:'https://i.redd.it/a.mp4'}}}}]}}).animated,true);
+ assert.equal(mediaFor({url:'https://i.imgur.com/a.gifv'}).mp4,'https://i.imgur.com/a.mp4');
+ assert.equal(mediaFor({url:'https://example.com/image',post_hint:'image',preview:{images:[{source:{url:'https://preview.redd.it/a.webp'}}]}}).type,'image');
+ assert.deepEqual(mediaFor({is_self:true,media_metadata:{a:{s:{mp4:'https://a.test/a.mp4',gif:'https://a.test/a.gif'}}}}).images,['https://a.test/a.mp4']);
+});
