@@ -7,7 +7,7 @@ export function createPlayback({isMuted,onSoundChange,isBlocked=()=>false}) {
  const records=new Map();
  function active(record){return record.visible&&!document.hidden&&!isBlocked(record.node);}
  function update(record){record.setPlaying(active(record));}
- const observer=new IntersectionObserver(entries=>{for(const entry of entries){const record=records.get(entry.target);if(record){record.visible=visibleEnough(entry);update(record);}}},{threshold:[0,.15,.25,.45,.6,1],rootMargin:window.matchMedia('(max-width:720px)').matches?'-80px 0px -90px 0px':'-80px 0px 0px 0px'});
+ const observer=new IntersectionObserver(entries=>{for(const entry of entries){const record=records.get(entry.target);if(record){record.visible=visibleEnough(entry);update(record);}}},{threshold:[0,.15,.25,.45,.6,1],rootMargin:window.matchMedia('(max-width:799px)').matches?'-56px 0px -70px 0px':'-64px 0px 0px 0px'});
  const refresh=()=>records.forEach(update);
  document.addEventListener('visibilitychange',refresh);
  function register(node,setPlaying,setMuted=()=>{},dispose=()=>{}){

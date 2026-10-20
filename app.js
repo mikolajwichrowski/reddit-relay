@@ -12,7 +12,7 @@ const TOKEN_KEY='relay.access-token';
 try { token=localStorage.getItem(TOKEN_KEY)||''; } catch {}
 const playback=createPlayback({isMuted:()=>!prefs.soundOn,onSoundChange:on=>{prefs.soundOn=on;persist();updateSoundButtons();},isBlocked:node=>!!document.querySelector('dialog[open]')&&!node.closest('dialog[open]')});
 function updateSoundButtons(){
- for(const b of document.querySelectorAll('.sound-toggle,#feed-sound')){labelIcon(b,prefs.soundOn?'volume':'muted',b.id==='feed-sound'?(prefs.soundOn?'Sound on':'Sound off'):'');b.setAttribute('aria-label',prefs.soundOn?'Turn sound off':'Turn sound on');b.setAttribute('aria-pressed',String(prefs.soundOn));}
+ for(const b of document.querySelectorAll('.sound-toggle,#feed-sound')){labelIcon(b,prefs.soundOn?'volume':'muted','');b.setAttribute('aria-label',prefs.soundOn?'Turn sound off':'Turn sound on');b.setAttribute('aria-pressed',String(prefs.soundOn));}
  $('#soundOn').checked=prefs.soundOn;
 }
 function toggleSound(){prefs.soundOn=!prefs.soundOn;persist();updateSoundButtons();playback.syncSound();playback.refresh();}
@@ -24,14 +24,14 @@ function persist() { try { localStorage.setItem(KEY,JSON.stringify(prefs)); } ca
 function element(tag, props={}, text='') {const e=document.createElement(tag);Object.assign(e,props);if(text)e.textContent=text;return e;}
 function link(text,url,className='') {const a=element('a',{textContent:text,href:safeURL(url)||'https://www.reddit.com',target:'_blank',rel:'noopener noreferrer',className});return a;}
 function original(p) {return p.permalink && /^\/r\//.test(p.permalink)?`https://www.reddit.com${p.permalink}`:safeURL(p.url)||'https://www.reddit.com';}
-function applyPrefs() {document.body.classList.toggle('dark',prefs.dark);document.body.classList.toggle('compact',prefs.compact);for(const k of ['adult','blur','dark','soundOn'])$('#'+k).checked=prefs[k];$('#saved-count').textContent=prefs.saved.length;renderCommunities();updateSoundButtons();}
+function applyPrefs() {document.body.classList.toggle('dark',prefs.dark);document.body.classList.toggle('compact',prefs.compact);$('#layout').setAttribute('aria-pressed',String(prefs.compact));for(const k of ['adult','blur','dark','soundOn'])$('#'+k).checked=prefs[k];$('#saved-count').textContent=prefs.saved.length;renderCommunities();updateSoundButtons();}
 function renderCommunities() {$('#communities').replaceChildren(...prefs.communities.map(name=>{const b=element('button',{},'r/  '+name);b.onclick=()=>navigate(name);return b;}));}
-function navigate(name) {feed=name;query='';$('#search').value='';savedView=false;demo=false;load();}
-function heading() {$('#page-title').textContent=savedView?'Saved posts':query?`Results for “${query}”`:feed==='popular'?'Explore':feed==='all'?'All of Reddit':`r/${feed}`;$('#subtitle').textContent=savedView?'Good finds, kept close. Saved on this device.':demo?'A sample of what’s out there. This is demo content.':'Find your next rabbit hole.';document.querySelectorAll('[data-feed]').forEach(b=>b.classList.toggle('active',!savedView&&b.dataset.feed===feed));$('#saved-nav').classList.toggle('active',savedView);$('#sort-tabs').hidden=savedView;$('#period').hidden=sort!=='top'||savedView;}
+function navigate(name) {$('#community-sheet').close();window.scrollTo({top:0});feed=name;query='';$('#search').value='';savedView=false;demo=false;load();}
+function heading() {$('#page-title').textContent=savedView?'Saved':query?`“${query}”`:feed==='popular'?'Popular':feed==='all'?'All of Reddit':`r/${feed}`;$('#subtitle').textContent=savedView?'Good finds, kept close. Saved on this device.':demo?'A sample of what’s out there. This is demo content.':'Find your next rabbit hole.';document.querySelectorAll('[data-feed]').forEach(b=>b.classList.toggle('active',!savedView&&b.dataset.feed===feed));$('#saved-nav').classList.toggle('active',savedView);$('#sort-tabs').hidden=savedView;$('#period').hidden=sort!=='top'||savedView;setOverlayTab();}
 function message(text,canDemo=false) {const n=element('div',{className:'notice'},text);if(canDemo){const b=element('button',{},'Explore demo');b.onclick=showDemo;n.append(' ',b,link('Open on Reddit ↗',query?`https://www.reddit.com/search/?q=${encodeURIComponent(query)}`:`https://www.reddit.com/r/${encodeURIComponent(feed)}/`));}$('#status').replaceChildren(n);}
 async function load(more=false) {
   controller?.abort();controller=new AbortController();const current=controller;
-  if(!more){after='';posts=[];$('.welcome').hidden=false;playback.clear($('#posts'));$('#posts').replaceChildren();} heading();$('#more').hidden=true;
+  if(!more){after='';posts=[];playback.clear($('#posts'));$('#posts').replaceChildren();} heading();$('#more').hidden=true;
   if(savedView){posts=prefs.saved;render();message(posts.length?'Saved posts are stored on this device.':'No saved posts yet. Tap “Save” on something you want to keep.');return;}
   message('Finding your next rabbit hole…');
   const timeout=setTimeout(()=>current.abort(),15000);
@@ -43,8 +43,8 @@ async function load(more=false) {
     const ids=new Set(posts.map(p=>p.id));posts.push(...incoming.filter(p=>!ids.has(p.id)));after=data.data.after||'';render();$('#status').textContent=posts.length?'':'No posts found. Try another search or community.';$('#more').hidden=!after;
   } catch(err) {if(current!==controller)return;message(navigator.onLine===false?'You’re offline. Saved posts and preferences are still available.':'Live Reddit is unavailable. Reddit may require approved API access, or block this browser request. Try again later, open Reddit directly, or explore the demo.',true);$('#more').hidden=!after;} finally {clearTimeout(timeout);}
 }
-function showDemo(){controller?.abort();demo=true;savedView=false;query='';feed='popular';posts=demoPosts;after='';heading();render();message('DEMO · Illustrative posts, not a live Reddit feed. Search or choose a community for live content.');$('#more').hidden=true;}
-function render() {$('.welcome').hidden=posts.length>0&&!demo;playback.clear($('#posts'));const visible=posts.filter(p=>prefs.adult||!p.over_18);$('#posts').replaceChildren(...visible.map(card));if(posts.length&&!visible.length)message('These posts are marked 18+. Enable mature content in Preferences if you are 18 or older.');}
+function showDemo(){$('#community-sheet').close();controller?.abort();demo=true;savedView=false;query='';feed='popular';posts=demoPosts;after='';heading();render();message('DEMO · Illustrative posts, not a live Reddit feed. Search or choose a community for live content.');$('#more').hidden=true;}
+function render() {playback.clear($('#posts'));const visible=posts.filter(p=>prefs.adult||!p.over_18);$('#posts').replaceChildren(...visible.map(card));if(posts.length&&!visible.length)message('These posts are marked 18+. Enable mature content in Preferences if you are 18 or older.');}
 function card(p) {
   const article=element('article',{className:'post'}),content=element('div',{className:'post-content'}),meta=element('div',{className:'post-meta'});
   meta.append(element('span',{className:'community-dot'},'r/'),link(`r/${p.subreddit||'reddit'}`,`https://www.reddit.com/r/${encodeURIComponent(p.subreddit||'all')}/`),element('span',{},demo?'· demo':`· ${age(p.created_utc)}`));
@@ -52,7 +52,7 @@ function card(p) {
   for(const text of [p.over_18?'18+':null,p.spoiler?'Spoiler':null,p.link_flair_text].filter(Boolean))content.append(element('span',{className:'tag'},text),' ');
   if(p.selftext)content.append(element('p',{className:'post-summary'},p.selftext));article.append(content);
   const media=mediaFor(p);if(media.type!=='text')article.append(renderMedia(p,media,false));
-  const actions=element('div',{className:'post-actions'});const score=element('span');labelIcon(score,'arrow',count(p.score));actions.append(score);const comments=labelIcon(element('button'),'comment',`${count(p.num_comments)} comments`);comments.onclick=()=>openPost(p);const save=element('button',{className:'save'},prefs.saved.some(x=>x.id===p.id)?'Saved':'Save');save.prepend(icon('bookmark'));save.setAttribute('aria-pressed',String(prefs.saved.some(x=>x.id===p.id)));save.onclick=()=>{const exists=prefs.saved.some(x=>x.id===p.id);if(!exists&&prefs.saved.length>=200){message('Your local library holds 200 posts. Export or remove a saved post first.');return;}prefs.saved=exists?prefs.saved.filter(x=>x.id!==p.id):[p,...prefs.saved];persist();if(savedView)posts=prefs.saved;render();};const source=link('',original(p));source.append(icon('external'));source.setAttribute('aria-label','Open original post');actions.append(comments,source,save);article.append(actions);return article;
+  const actions=element('div',{className:'post-actions'});const score=element('span');labelIcon(score,'arrow',count(p.score));actions.append(score);const comments=labelIcon(element('button'),'comment',count(p.num_comments));comments.onclick=()=>openPost(p);const save=element('button',{className:'save'},prefs.saved.some(x=>x.id===p.id)?'Saved':'Save');save.prepend(icon('bookmark'));save.setAttribute('aria-pressed',String(prefs.saved.some(x=>x.id===p.id)));save.onclick=()=>{const exists=prefs.saved.some(x=>x.id===p.id);if(!exists&&prefs.saved.length>=200){message('Your local library holds 200 posts. Export or remove a saved post first.');return;}prefs.saved=exists?prefs.saved.filter(x=>x.id!==p.id):[p,...prefs.saved];persist();if(savedView)posts=prefs.saved;render();};const source=link('',original(p));source.append(icon('external'));source.setAttribute('aria-label','Open original post');actions.append(comments,source,save);article.append(actions);return article;
 }
 function count(n){return Intl.NumberFormat('en',{notation:'compact',maximumFractionDigits:1}).format(Number(n)||0);}
 function age(time){const hours=Math.max(0,Math.floor((Date.now()/1000-(time||Date.now()/1000))/3600));return hours<1?'just now':hours<24?`${hours}h ago`:`${Math.floor(hours/24)}d ago`;}
@@ -115,14 +115,15 @@ function embedPlayer(m,title){
  updateSoundButtons();return wrap;
 }
 async function openPost(p){const detail=$('#post-detail');playback.clear(detail);detail.replaceChildren(element('small',{},`r/${p.subreddit} · u/${p.author||'unknown'}`),element('h2',{},p.title));if(p.over_18&&!prefs.adult){detail.append(element('p',{},'Enable mature content in Preferences to view this post.'));$('#viewer').showModal();return;}if(p.selftext)detail.append(element('p',{className:'body-text'},p.selftext));detail.append(renderMedia(p,mediaFor(p),true),link('View conversation on Reddit ↗',original(p),'source'));const comments=element('div');detail.append(comments);$('#viewer').showModal();playback.refresh();if(demo||!p.permalink)return;comments.textContent='Loading comments…';try{const host=token?'https://oauth.reddit.com':'https://www.reddit.com';const response=await fetch(`${host}${p.permalink.replace(/\/$/,'')}.json?raw_json=1&limit=15`,{credentials:'omit',headers:token?{Authorization:`Bearer ${token}`}:{},signal:AbortSignal.timeout(12000)});if(!response.ok)throw Error();const data=await response.json();comments.replaceChildren(element('h3',{},'Conversation'));for(const child of data[1]?.data?.children||[]){const c=child.data;if(child.kind!=='t1'||!c.body)continue;const row=element('div',{className:'notice'});row.append(element('small',{},`u/${c.author} · ↑ ${count(c.score)}`),element('p',{className:'body-text'},c.body));comments.append(row);}if(comments.children.length===1)comments.append(element('p',{},'No comments available.'));}catch{comments.textContent='Comments unavailable here. Open the conversation on Reddit to read more.';}}
-$('#search-form').onsubmit=e=>{e.preventDefault();query=$('#search').value.trim().slice(0,512);demo=false;savedView=false;load();};
+$('#search-form').onsubmit=e=>{e.preventDefault();$('#search').blur();query=$('#search').value.trim().slice(0,512);demo=false;savedView=false;load();};
 $('#community-form').onsubmit=e=>{e.preventDefault();const name=$('#community').value.replace(/^r\//,'').trim();if(!/^[\w]{2,21}$/.test(name))return;if(!prefs.communities.includes(name))prefs.communities.push(name);prefs.communities=prefs.communities.slice(-40);persist();renderCommunities();navigate(name);$('#community').value='';};
 document.querySelectorAll('[data-feed]').forEach(b=>b.onclick=()=>navigate(b.dataset.feed));
 document.querySelectorAll('[data-sort]').forEach(b=>b.onclick=()=>{sort=b.dataset.sort;document.querySelectorAll('[data-sort]').forEach(x=>x.classList.toggle('active',x===b));if(demo){demo=false;}load();});
-$('#saved-nav').onclick=()=>{savedView=true;demo=false;load();};$('#more').onclick=()=>load(true);$('#period').onchange=()=>load();$('#demo-button').onclick=showDemo;
+$('#saved-nav').onclick=()=>{window.scrollTo({top:0});savedView=true;demo=false;load();};$('#more').onclick=()=>load(true);$('#period').onchange=()=>load();$('#demo-button').onclick=showDemo;
 $('#layout').onclick=()=>{prefs.compact=!prefs.compact;applyPrefs();persist();};
-for(const id of ['settings-button','mobile-settings'])$('#'+id).onclick=()=>{$('#settings').showModal();playback.refresh();};
-$('#settings').addEventListener('close',()=>playback.refresh());
+for(const id of ['settings-button','mobile-settings'])$('#'+id).onclick=()=>{$('#settings').showModal();setOverlayTab('settings');playback.refresh();};
+$('#settings').addEventListener('close',()=>{setOverlayTab();playback.refresh();});
+$('#community-sheet').addEventListener('close',()=>{setOverlayTab();playback.refresh();});
 $('#viewer').addEventListener('close',()=>{playback.clear($('#post-detail'));$('#post-detail').replaceChildren();playback.refresh();});
 $('#feed-sound').onclick=toggleSound;
 $('#soundOn').onchange=toggleSound;
@@ -154,12 +155,18 @@ $('#export').onclick=()=>{const url=URL.createObjectURL(new Blob([JSON.stringify
 $('#import').onchange=async e=>{try{const file=e.target.files[0];if(!file)return;if(file.size>5*1024*1024)throw Error('Backup must be under 5 MB.');prefs=validate(JSON.parse(await file.text()));persist();applyPrefs();playback.syncSound();if(savedView)posts=prefs.saved;render();$('#settings-status').textContent='Local data imported.';}catch(err){$('#settings-status').textContent=err.message;}finally{e.target.value='';}};
 $('#clear').onclick=()=>{if(!confirm('Remove all saved posts and preferences from this device?'))return;tokenRequest?.abort();tokenRequest=null;$('#connect-token').disabled=false;prefs=structuredClone(defaults);token='';$('#token').value='';$('#remember-token').checked=false;saveToken();$('#connection-state').textContent='Not connected';persist();applyPrefs();if(savedView)posts=[];render();$('#settings-status').textContent='Local data cleared.';};
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();installPrompt=e;$('#install').hidden=false;});$('#install').onclick=async()=>{if(!installPrompt)return;await installPrompt.prompt();installPrompt=null;$('#install').hidden=true;};window.addEventListener('appinstalled',()=>$('#install').hidden=true);
-// Replace platform-dependent Unicode symbols with a consistent SVG icon set.
-for(const [selector,name,text] of [['[data-feed=popular]','compass','Explore'],['[data-feed=all]','globe','All'],['#settings-button','settings','Preferences'],['#mobile-settings','settings',''],['#layout','grid',''],['#install','download','Install'],['[data-sort=hot]','flame','Hot'],['[data-sort=new]','sparkles','New'],['[data-sort=top]','arrow','Top'],['[data-sort=rising]','trend','Rising'],['#community-form button','plus','']])labelIcon($(selector),name,text);
-const savedCount=$('#saved-count');labelIcon($('#saved-nav'),'bookmark','Saved posts');$('#saved-nav').append(savedCount);
+function setOverlayTab(tab){
+ $('#communities-nav').classList.toggle('active',tab==='communities');$('#mobile-settings').classList.toggle('active',tab==='settings');
+ $('#primary-nav [data-feed=popular]').classList.toggle('active',!tab&&!savedView);$('#saved-nav').classList.toggle('active',!tab&&savedView);
+ for(const button of document.querySelectorAll('#primary-nav button'))button.setAttribute('aria-current',button.classList.contains('active')?'page':'false');
+}
+function openCommunities(){$('#community-sheet').showModal();setOverlayTab('communities');playback.refresh();}
+$('#feed-picker').onclick=openCommunities;$('#communities-nav').onclick=openCommunities;$('#popular-choice').onclick=()=>navigate('popular');
+function searchPanel(show){$('#search-panel').hidden=!show;$('#search-toggle').setAttribute('aria-expanded',String(show));if(show)$('#search').focus();else $('#search').blur();}
+$('#search-toggle').onclick=()=>searchPanel($('#search-panel').hidden);$('#search-cancel').onclick=()=>searchPanel(false);
+for(const [selector,name,text] of [['[data-feed=popular]','compass','Feed'],['#communities-nav','globe','Communities'],['#settings-button','settings','Settings'],['#mobile-settings','settings','Settings'],['#layout','grid',''],['#install','download','Install'],['#search-toggle','search',''],['[data-sort=hot]','flame','Hot'],['[data-sort=new]','sparkles','New'],['[data-sort=top]','arrow','Top'],['[data-sort=rising]','trend','Rising'],['#community-form button','plus','']])labelIcon($(selector),name,text);
+const savedCount=$('#saved-count');labelIcon($('#saved-nav'),'bookmark','Saved');$('#saved-nav').append(savedCount);
 $('#search-form>span').replaceChildren(icon('search'));
 document.querySelectorAll('.close').forEach(b=>labelIcon(b,'close',''));
-$('#demo-button span').replaceChildren(icon('external'));
-for(const [selector,name] of [['.s1','sparkles'],['.s2','external'],['.s3','compass']])$(selector).replaceChildren(icon(name));
 if('serviceWorker'in navigator)navigator.serviceWorker.register('./sw.js').catch(()=>message('Offline support could not start. Use HTTPS or localhost.'));
 applyPrefs();load();

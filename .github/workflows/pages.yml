@@ -22,6 +22,18 @@ jobs:
         with:
           node-version: 22
       - run: npm test
+      - name: Install browser checks
+        run: |
+          npm install --no-save --package-lock=false playwright
+          npx playwright install --with-deps chromium
+      - name: Check mobile and desktop layouts
+        run: node scripts/check-ui.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ui-screenshots
+          path: ui-screenshots/
+          if-no-files-found: ignore
       - run: |
           mkdir _site
           cp index.html style.css app.js media.js demo.js icons.js playback.js sw.js manifest.webmanifest _site/

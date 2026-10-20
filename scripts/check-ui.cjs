@@ -1,0 +1,34 @@
+const {chromium}=require('playwright');
+const {spawn}=require('node:child_process');
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+(async()=>{
+ const server=spawn('python3',['-m','http.server','8080','--bind','127.0.0.1'],{stdio:'ignore'});let browser;
+ try{
+  for(let i=0;i<30;i++){try{await fetch('http://127.0.0.1:8080');break;}catch{await new Promise(r=>setTimeout(r,100));}}
+  browser=await chromium.launch({headless:true,...(fs.existsSync('/usr/bin/chromium')?{executablePath:'/usr/bin/chromium'}:{}),args:['--no-sandbox']});
+  const page=await browser.newPage({viewport:{width:390,height:844}});const errors=[];page.on('pageerror',e=>errors.push(e.message));
+  const rows=[{id:'photo',subreddit:'EarthPorn',author:'reader',title:'The mountains were worth the early start.',url:'https://i.redd.it/mountain.jpg',score:12400,num_comments:342},{id:'gallery',subreddit:'CozyPlaces',author:'reader',title:'A few quiet corners from the weekend.',gallery_data:{items:[{media_id:'a'},{media_id:'b'}]},media_metadata:{a:{s:{u:'https://i.redd.it/a.jpg'}},b:{s:{u:'https://i.redd.it/b.jpg'}}},score:830,num_comments:24},{id:'text',subreddit:'AskReddit',author:'reader',title:'What small thing made your day better?',is_self:true,selftext:'A good conversation, a long walk, and a little time away from the screen.',score:541,num_comments:80}];
+  const listing=JSON.stringify({data:{children:rows.map(data=>({data})),after:null}});
+  await page.route('https://www.reddit.com/**',r=>r.fulfill({contentType:'application/json',body:listing}));
+  await page.route('https://oauth.reddit.com/**',r=>r.fulfill({contentType:'application/json',body:r.request().url().includes('/api/v1/me')?JSON.stringify({name:'ui_test'}):listing}));
+  const svg='<svg xmlns="http://www.w3.org/2000/svg" width="800" height="560"><defs><linearGradient id="s" x2="0" y2="1"><stop stop-color="#8ba7b8"/><stop offset="1" stop-color="#e0d8bc"/></linearGradient></defs><path fill="url(#s)" d="M0 0h800v560H0z"/><path fill="#6d8187" d="M0 410 250 180 440 350 650 110 800 290v270H0z"/><path fill="#e8e8de" d="m180 245 70-65 88 79-70-20-22 24-22-14zM565 204l85-94 92 110-57-27-32 22-28-34z"/><path fill="#2f4846" d="M0 490 180 390 380 440 570 300 800 435v125H0z"/></svg>';
+  await page.route('https://i.redd.it/**',r=>r.fulfill({contentType:'image/svg+xml',body:svg}));
+  await page.goto('http://127.0.0.1:8080');await page.locator('.post').first().waitFor();assert.equal(await page.locator('.gallery img').count(),2);
+  fs.mkdirSync('ui-screenshots',{recursive:true});
+  for(const width of [320,375,390,430,768,1440]){
+   await page.setViewportSize({width,height:844});await page.evaluate(()=>scrollTo(0,0));await page.waitForTimeout(80);
+   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,'overflow at '+width);
+   assert.equal(await page.evaluate(()=>{const a=document.querySelector('#feed-picker').getBoundingClientRect(),b=document.querySelector('.header-actions').getBoundingClientRect();return a.right>b.left+1;}),false,'header collision at '+width);
+   if(width<800){assert.ok((await page.locator('.post').first().boundingBox()).y<160,'feed starts too low');assert.ok((await page.locator('#primary-nav').boundingBox()).height<=80,'tab bar too tall');}
+   await page.locator('[data-sort=top]').click();await page.locator('#period').waitFor({state:'visible'});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,'top toolbar overflow at '+width);await page.locator('[data-sort=hot]').click();await page.screenshot({path:'ui-screenshots/feed-'+width+'.png'});
+  }
+  await page.setViewportSize({width:390,height:844});await page.locator('#communities-nav').click();await page.locator('#community-sheet[open]').waitFor();await page.screenshot({path:'ui-screenshots/communities.png'});
+  await page.locator('#community').fill('technology');await page.locator('#community-form button').click();await page.locator('#community-sheet').waitFor({state:'hidden'});assert.equal(await page.locator('#page-title').innerText(),'r/technology');
+  await page.locator('#search-toggle').click();await page.locator('#search').fill('a long search query to verify truncation and header layout');await page.locator('#search').press('Enter');assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);await page.locator('#search-cancel').click();
+  await page.locator('#mobile-settings').click();await page.locator('#settings[open]').waitFor();await page.locator('#dark').check();await page.screenshot({path:'ui-screenshots/settings-dark.png'});
+  await page.locator('#token').fill('test-token');await page.locator('#remember-token').check();await page.locator('#connect-token').click();await page.getByText('Connected as u/ui_test.',{exact:true}).waitFor();await page.locator('#disconnect-token').click();assert.equal(await page.evaluate(()=>localStorage.getItem('relay.access-token')),null);await page.locator('#settings .close').click();
+  await page.locator('.save').first().click();await page.locator('#saved-nav').click();assert.equal(await page.locator('.post').count(),1);await page.screenshot({path:'ui-screenshots/saved-dark.png'});assert.equal(await page.locator('#primary-nav .icon').count(),4);assert.deepEqual(errors,[]);
+  console.log('PASS: 6 viewport widths; no header/toolbar overflow; inline galleries; community picker; search; settings; token manager; saved posts; no JavaScript exceptions.');
+ }finally{await browser?.close();server.kill();}
+})().catch(e=>{console.error(e);process.exitCode=1});

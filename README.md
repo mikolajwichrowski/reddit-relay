@@ -1,6 +1,6 @@
 # Relay
 
-An iOS-inspired glass Reddit reader with a floating tab bar, translucent surfaces, consistent SVG icons, and inline media. Vanilla JavaScript, static files, no build, no account system, no database.
+A mobile Reddit reader with a compact feed header, community picker, stable tab navigation, consistent SVG icons, and inline media. Glass is reserved for navigation; posts use solid surfaces for contrast. Vanilla JavaScript, static files, no build, no account system, no database.
 
 **[Click here to open Relay](https://mikolajwichrowski.github.io/reddit-relay/)** — intended GitHub Pages URL. This link becomes live after you publish the repository and enable Pages below; it is not a deployment confirmation.
 
@@ -84,7 +84,7 @@ Sound is **off by default**. The feed sound control, per-player button, Preferen
 
 Bookmarks, community names, and preferences use `localStorage` under `relay.v1`. Saved post text and media URLs remain on this device until cleared; clearing browser data removes them. A backup contains saved content and should be treated as personal data. Cross-device sync is intentionally absent.
 
-The service worker caches only the same-origin application shell and bundled playback libraries using the browser’s Cache Storage API (required for offline PWA behavior). It does not cache API responses, access tokens, or external media. After the first successful visit, the shell and saved post metadata work offline; new feeds, images, videos, and comments require internet access. Browser updates activate once old app tabs close. Bump `relay-shell-v2` in `sw.js` when changing the cache contents.
+The service worker caches only the same-origin application shell and bundled playback libraries using the browser’s Cache Storage API (required for offline PWA behavior). It does not cache API responses, access tokens, or external media. After the first successful visit, the shell and saved post metadata work offline; new feeds, images, videos, and comments require internet access. Browser updates activate once old app tabs close. Bump `relay-shell-v3` in `sw.js` when changing the cache contents.
 
 No analytics or application server. Network requests go directly to Reddit, chosen media providers, Unsplash for demo photos. Supported third-party embeds load when scrolled into view, connecting directly to their provider. The UI uses system fonts without font-service requests.
 
@@ -95,3 +95,9 @@ No analytics or application server. Network requests go directly to Reddit, chos
 Vendored playback dependencies: **hls.js 1.6.13** (Apache-2.0, `vendor/HLS-LICENSE`) and **dash.js 5.0.3** (BSD-3-Clause, `vendor/DASH-LICENSE`). No CDN runtime dependency for playback. Project code is MIT licensed. This is an independent reader, not affiliated with Reddit.
 
 GitHub Pages setup reference: [Using custom workflows](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages).
+
+## Interface checks
+
+The layout follows familiar Reddit reader patterns, using [Apollo](https://apolloapp.io/clockwise/) and [Apple’s material guidance](https://developer.apple.com/design/human-interface-guidelines/materials) as references. The original layout uses a compact header, full-width posts, and a community sheet.
+
+`node scripts/check-ui.cjs` runs Playwright checks at six viewport widths and saves screenshots to `ui-screenshots/`. Install Playwright separately for development: `npm install --no-save --package-lock=false playwright`, then `npx playwright install chromium`. The Pages workflow runs these checks before deploying.
