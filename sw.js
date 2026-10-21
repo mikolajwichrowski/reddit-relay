@@ -1,5 +1,5 @@
-const CACHE='relay-shell-v3';
-const SHELL=['./','./index.html','./style.css','./app.js','./media.js','./demo.js','./icons.js','./playback.js','./manifest.webmanifest','./assets/icon.svg','./assets/icon-192.png','./assets/icon-512.png','./vendor/hls.min.js','./vendor/dash.all.min.js'];
+const CACHE='relay-shell-v4';
+const SHELL=['./','./index.html','./style.css','./app.js','./auth.js','./media.js','./demo.js','./icons.js','./playback.js','./manifest.webmanifest','./assets/icon.svg','./assets/icon-192.png','./assets/icon-512.png','./vendor/hls.min.js','./vendor/dash.all.min.js'];
 self.addEventListener('install',e=>e.waitUntil(caches.open(CACHE).then(c=>c.addAll(SHELL))));
 self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k.startsWith('relay-shell-')&&k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
 self.addEventListener('fetch',e=>{

@@ -2,6 +2,7 @@ import {decode, safeURL, mediaFor, listingURL} from './media.js';
 import {demoPosts} from './demo.js';
 import {icon,labelIcon} from './icons.js';
 import {createPlayback} from './playback.js';
+import {authorizationURL,readCallback} from './auth.js';
 const $ = s => document.querySelector(s);
 const KEY = 'relay.v1';
 const defaults = {adult:false,blur:true,dark:false,compact:false,soundOn:false,communities:['EarthPorn','CozyPlaces','technology','AskReddit'],saved:[]};
@@ -9,7 +10,15 @@ let prefs = structuredClone(defaults);
 try { const stored = JSON.parse(localStorage.getItem(KEY)); if(stored) prefs = validate(stored); } catch { /* Storage can be unavailable in private browsing. */ }
 let feed='popular', sort='hot', query='', after='', posts=[], demo=false, savedView=false, controller, token='', installPrompt;
 const TOKEN_KEY='relay.access-token';
-try { token=localStorage.getItem(TOKEN_KEY)||''; } catch {}
+let tokenExpiresAt=0,authNotice='',tokenRemembered=false;
+try { token=localStorage.getItem(TOKEN_KEY)||'';tokenExpiresAt=Number(localStorage.getItem('relay.token-expires'))||0;if(tokenExpiresAt&&tokenExpiresAt<=Date.now()){token='';localStorage.removeItem(TOKEN_KEY);localStorage.removeItem('relay.token-expires');authNotice='Your Reddit token expired. Connect again in Settings.';} } catch {}
+tokenRemembered=!!token;
+const callbackParams=new URLSearchParams(location.hash.slice(1));
+if(callbackParams.has('access_token')||callbackParams.has('error')){
+ history.replaceState(null,'',location.pathname+location.search);
+ try{const pending=JSON.parse(sessionStorage.getItem('relay.oauth-pending')||'null');sessionStorage.removeItem('relay.oauth-pending');const result=readCallback('#'+callbackParams.toString(),pending);if(result){token=result.token;tokenExpiresAt=result.expiresAt;tokenRemembered=result.remember;if(result.remember){localStorage.setItem(TOKEN_KEY,token);localStorage.setItem('relay.token-expires',String(tokenExpiresAt));}else{localStorage.removeItem(TOKEN_KEY);localStorage.removeItem('relay.token-expires');}authNotice='Reddit connected. Your access token was received automatically.';}}catch(error){authNotice=error.message;}
+}
+
 const playback=createPlayback({isMuted:()=>!prefs.soundOn,onSoundChange:on=>{prefs.soundOn=on;persist();updateSoundButtons();},isBlocked:node=>!!document.querySelector('dialog[open]')&&!node.closest('dialog[open]')});
 function updateSoundButtons(){
  for(const b of document.querySelectorAll('.sound-toggle,#feed-sound')){labelIcon(b,prefs.soundOn?'volume':'muted','');b.setAttribute('aria-label',prefs.soundOn?'Turn sound off':'Turn sound on');b.setAttribute('aria-pressed',String(prefs.soundOn));}
@@ -24,7 +33,7 @@ function persist() { try { localStorage.setItem(KEY,JSON.stringify(prefs)); } ca
 function element(tag, props={}, text='') {const e=document.createElement(tag);Object.assign(e,props);if(text)e.textContent=text;return e;}
 function link(text,url,className='') {const a=element('a',{textContent:text,href:safeURL(url)||'https://www.reddit.com',target:'_blank',rel:'noopener noreferrer',className});return a;}
 function original(p) {return p.permalink && /^\/r\//.test(p.permalink)?`https://www.reddit.com${p.permalink}`:safeURL(p.url)||'https://www.reddit.com';}
-function applyPrefs() {document.body.classList.toggle('dark',prefs.dark);document.body.classList.toggle('compact',prefs.compact);$('#layout').setAttribute('aria-pressed',String(prefs.compact));for(const k of ['adult','blur','dark','soundOn'])$('#'+k).checked=prefs[k];$('#saved-count').textContent=prefs.saved.length;renderCommunities();updateSoundButtons();}
+function applyPrefs() {const chrome=prefs.dark?'#111114':'#f2f2f7';document.documentElement.style.backgroundColor=chrome;document.documentElement.style.colorScheme=prefs.dark?'dark':'light';document.querySelector('meta[name="theme-color"]').content=chrome;document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]').content=prefs.dark?'black-translucent':'default';document.body.classList.toggle('dark',prefs.dark);document.body.classList.toggle('compact',prefs.compact);$('#layout').setAttribute('aria-pressed',String(prefs.compact));for(const k of ['adult','blur','dark','soundOn'])$('#'+k).checked=prefs[k];$('#saved-count').textContent=prefs.saved.length;renderCommunities();updateSoundButtons();}
 function renderCommunities() {$('#communities').replaceChildren(...prefs.communities.map(name=>{const b=element('button',{},'r/  '+name);b.onclick=()=>navigate(name);return b;}));}
 function navigate(name) {$('#community-sheet').close();window.scrollTo({top:0});feed=name;query='';$('#search').value='';savedView=false;demo=false;load();}
 function heading() {$('#page-title').textContent=savedView?'Saved':query?`“${query}”`:feed==='popular'?'Popular':feed==='all'?'All of Reddit':`r/${feed}`;$('#subtitle').textContent=savedView?'Good finds, kept close. Saved on this device.':demo?'A sample of what’s out there. This is demo content.':'Find your next rabbit hole.';document.querySelectorAll('[data-feed]').forEach(b=>b.classList.toggle('active',!savedView&&b.dataset.feed===feed));$('#saved-nav').classList.toggle('active',savedView);$('#sort-tabs').hidden=savedView;$('#period').hidden=sort!=='top'||savedView;setOverlayTab();}
@@ -37,11 +46,11 @@ async function load(more=false) {
   const timeout=setTimeout(()=>current.abort(),15000);
   try {
     const res=await fetch(listingURL({feed,sort,query,period:$('#period').value,after:more?after:'',adult:prefs.adult,authenticated:!!token}),{signal:current.signal,credentials:'omit',headers:token?{Authorization:`Bearer ${token}`}:{}});
-    if(!res.ok)throw Error(`Reddit returned ${res.status}.`);
+    if(!res.ok)throw Error(res.status===401?'Your Reddit token expired. Open Settings and connect again.':`Reddit returned ${res.status}.`);
     const data=await res.json();if(!Array.isArray(data?.data?.children))throw Error('Reddit did not return a post listing.');
     const incoming=data.data.children.map(x=>x.data).filter(p=>p?.id&&p.title);
     const ids=new Set(posts.map(p=>p.id));posts.push(...incoming.filter(p=>!ids.has(p.id)));after=data.data.after||'';render();$('#status').textContent=posts.length?'':'No posts found. Try another search or community.';$('#more').hidden=!after;
-  } catch(err) {if(current!==controller)return;message(navigator.onLine===false?'You’re offline. Saved posts and preferences are still available.':'Live Reddit is unavailable. Reddit may require approved API access, or block this browser request. Try again later, open Reddit directly, or explore the demo.',true);$('#more').hidden=!after;} finally {clearTimeout(timeout);}
+  } catch(err) {if(current!==controller)return;message(navigator.onLine===false?'You’re offline. Saved posts and preferences are still available.':(err.message.includes('token expired')?err.message:'Live Reddit is unavailable. Reddit may require approved API access, or block this browser request. Try again later, open Reddit directly, or explore the demo.'),true);$('#more').hidden=!after;} finally {clearTimeout(timeout);}
 }
 function showDemo(){$('#community-sheet').close();controller?.abort();demo=true;savedView=false;query='';feed='popular';posts=demoPosts;after='';heading();render();message('DEMO · Illustrative posts, not a live Reddit feed. Search or choose a community for live content.');$('#more').hidden=true;}
 function render() {playback.clear($('#posts'));const visible=posts.filter(p=>prefs.adult||!p.over_18);$('#posts').replaceChildren(...visible.map(card));if(posts.length&&!visible.length)message('These posts are marked 18+. Enable mature content in Preferences if you are 18 or older.');}
@@ -128,9 +137,18 @@ $('#viewer').addEventListener('close',()=>{playback.clear($('#post-detail'));$('
 $('#feed-sound').onclick=toggleSound;
 $('#soundOn').onchange=toggleSound;
 for(const key of ['adult','blur','dark'])$('#'+key).onchange=e=>{prefs[key]=e.target.checked;persist();applyPrefs();if(key==='adult'&&!demo&&!savedView)load();else render();};
-function saveToken(){try{if($('#remember-token').checked&&token)localStorage.setItem(TOKEN_KEY,token);else localStorage.removeItem(TOKEN_KEY);}catch{$('#token-status').textContent='Token could not be saved to device storage.';}}
-$('#token').value=token;$('#remember-token').checked=!!token;
-$('#connection-state').textContent=token?'Token saved':'Not connected';
+function saveToken(){try{if($('#remember-token').checked&&token){localStorage.setItem(TOKEN_KEY,token);if(tokenExpiresAt)localStorage.setItem('relay.token-expires',String(tokenExpiresAt));else localStorage.removeItem('relay.token-expires');}else{localStorage.removeItem(TOKEN_KEY);localStorage.removeItem('relay.token-expires');}}catch{$('#token-status').textContent='Token could not be saved to device storage.';}}
+$('#token').value=token;$('#remember-token').checked=tokenRemembered;
+$('#connection-state').textContent=token?(tokenExpiresAt?'Connected':'Token saved'):'Not connected';
+const redirectUri=new URL('./',location.href).href;
+$('#redirect-uri').value=redirectUri;
+try{$('#client-id').value=localStorage.getItem('relay.client-id')||'';}catch{}
+$('#client-id').onchange=()=>{try{localStorage.setItem('relay.client-id',$('#client-id').value.trim());}catch{$('#oauth-status').textContent='Client ID could not be saved on this device.';}};
+$('#copy-redirect').onclick=async()=>{try{await navigator.clipboard.writeText(redirectUri);$('#oauth-status').textContent='Redirect URI copied.';}catch{$('#redirect-uri').select();$('#oauth-status').textContent='Select and copy the redirect URI shown above.';}};
+$('#oauth-connect').onclick=()=>{
+ try{const clientId=$('#client-id').value.trim();const state=Array.from(crypto.getRandomValues(new Uint8Array(32)),byte=>byte.toString(16).padStart(2,'0')).join('');const url=authorizationURL(clientId,redirectUri,state);localStorage.setItem('relay.client-id',clientId);sessionStorage.setItem('relay.oauth-pending',JSON.stringify({state,createdAt:Date.now(),remember:$('#remember-token').checked}));location.assign(url);}catch(error){$('#oauth-status').textContent=error.message;}
+};
+if(authNotice){$('#oauth-status').textContent=authNotice;$('#settings').showModal();setOverlayTab('settings');playback.refresh();}
 $('#show-token').onclick=()=>{const show=$('#token').type==='password';$('#token').type=show?'text':'password';$('#show-token').textContent=show?'Hide':'Show';};
 $('#remember-token').onchange=saveToken;
 let tokenRequest;
@@ -146,16 +164,16 @@ $('#connect-token').onclick=async()=>{
   let readOnly=false;if(res.status===403){res=await fetch('https://oauth.reddit.com/r/popular/hot.json?limit=1&raw_json=1',{headers:{Authorization:`Bearer ${candidate}`},credentials:'omit',signal:request.signal});readOnly=true;}
   if(!res.ok)throw Error(res.status===401?'Token expired or invalid. Paste a fresh token.':`Reddit denied verification (${res.status}). Check the token’s identity scope and API access.`);
   const account=await res.json();if(!account.name&&!(readOnly&&Array.isArray(account.data?.children)))throw Error('Reddit did not return a valid API response.');
-  token=candidate;saveToken();$('#connection-state').textContent='Connected';$('#token-status').textContent=account.name?`Connected as u/${account.name}.`:'Connected with read access.';demo=false;savedView=false;load();
+  if(token!==candidate)tokenExpiresAt=0;token=candidate;saveToken();$('#connection-state').textContent='Connected';$('#token-status').textContent=account.name?`Connected as u/${account.name}.`:'Connected with read access.';demo=false;savedView=false;load();
  }catch(err){if(request===tokenRequest)$('#token-status').textContent=err.name==='AbortError'?'Connection timed out. Check your network and Reddit API access.':err.message==='Failed to fetch'?'Reddit could not be reached. Browser access may be restricted.':err.message;}
  finally{clearTimeout(timeout);if(request===tokenRequest)$('#connect-token').disabled=false;}
 };
-$('#disconnect-token').onclick=()=>{tokenRequest?.abort();tokenRequest=null;token='';$('#token').value='';$('#remember-token').checked=false;saveToken();$('#connect-token').disabled=false;$('#connection-state').textContent='Not connected';$('#token-status').textContent='Disconnected. Token removed from this device.';if(!demo&&!savedView)load();};
+$('#disconnect-token').onclick=()=>{tokenRequest?.abort();tokenRequest=null;token='';tokenExpiresAt=0;$('#token').value='';$('#remember-token').checked=false;saveToken();$('#connect-token').disabled=false;$('#connection-state').textContent='Not connected';$('#token-status').textContent='Disconnected. Token removed from this device.';if(!demo&&!savedView)load();};
 $('#export').onclick=()=>{const url=URL.createObjectURL(new Blob([JSON.stringify(prefs,null,2)],{type:'application/json'}));const a=element('a',{href:url,download:'relay-backup.json'});a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
 $('#import').onchange=async e=>{try{const file=e.target.files[0];if(!file)return;if(file.size>5*1024*1024)throw Error('Backup must be under 5 MB.');prefs=validate(JSON.parse(await file.text()));persist();applyPrefs();playback.syncSound();if(savedView)posts=prefs.saved;render();$('#settings-status').textContent='Local data imported.';}catch(err){$('#settings-status').textContent=err.message;}finally{e.target.value='';}};
-$('#clear').onclick=()=>{if(!confirm('Remove all saved posts and preferences from this device?'))return;tokenRequest?.abort();tokenRequest=null;$('#connect-token').disabled=false;prefs=structuredClone(defaults);token='';$('#token').value='';$('#remember-token').checked=false;saveToken();$('#connection-state').textContent='Not connected';persist();applyPrefs();if(savedView)posts=[];render();$('#settings-status').textContent='Local data cleared.';};
+$('#clear').onclick=()=>{if(!confirm('Remove all saved posts and preferences from this device?'))return;tokenRequest?.abort();tokenRequest=null;$('#connect-token').disabled=false;prefs=structuredClone(defaults);token='';tokenExpiresAt=0;$('#token').value='';$('#remember-token').checked=false;saveToken();localStorage.removeItem('relay.client-id');sessionStorage.removeItem('relay.oauth-pending');$('#client-id').value='';$('#connection-state').textContent='Not connected';persist();applyPrefs();if(savedView)posts=[];render();$('#settings-status').textContent='Local data cleared.';};
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();installPrompt=e;$('#install').hidden=false;});$('#install').onclick=async()=>{if(!installPrompt)return;await installPrompt.prompt();installPrompt=null;$('#install').hidden=true;};window.addEventListener('appinstalled',()=>$('#install').hidden=true);
-function setOverlayTab(tab){
+function setOverlayTab(tab){if(tab===undefined)tab=$('#settings').open?'settings':$('#community-sheet').open?'communities':undefined;
  $('#communities-nav').classList.toggle('active',tab==='communities');$('#mobile-settings').classList.toggle('active',tab==='settings');
  $('#primary-nav [data-feed=popular]').classList.toggle('active',!tab&&!savedView);$('#saved-nav').classList.toggle('active',!tab&&savedView);
  for(const button of document.querySelectorAll('#primary-nav button'))button.setAttribute('aria-current',button.classList.contains('active')?'page':'false');

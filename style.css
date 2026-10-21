@@ -4,3 +4,8 @@
 @media(prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
 @media(prefers-reduced-transparency:reduce){.app-header,#primary-nav{background:var(--surface);backdrop-filter:none;-webkit-backdrop-filter:none}}
 .toolbar{flex-wrap:wrap}.view-options{margin-left:auto}
+
+/* Paint the iPhone status-bar safe area opaquely, above the glass toolbar. */
+@media(max-width:799px){.app-header::before{content:'';position:absolute;inset:0 0 auto;height:env(safe-area-inset-top,0px);background:var(--bg);pointer-events:none}.topbar,#search-panel{position:relative}}
+.credentials-link{display:inline-flex;align-items:center;min-height:44px;font-size:13px;font-weight:600;color:var(--accent)}
+.config-input{display:block;width:100%;padding:12px;margin:8px 0 14px;border:1px solid var(--line);border-radius:9px;background:var(--field);font-size:16px;color:var(--ink)}#redirect-uri{min-width:0;width:100%;padding:12px;border:0;background:transparent;font-size:12px;color:var(--ink)}#copy-redirect{font-size:12px;color:var(--accent)}.oauth-steps{font-size:12px;color:var(--muted);padding-left:19px;line-height:1.8}.primary-action{background:#3876ed;color:#fff;width:100%;margin-top:10px}.primary-action:hover{background:#2865db}.manual-token-title{font-size:12px;color:var(--muted);font-weight:600;margin:24px 0 14px;border-top:1px solid var(--line);padding-top:18px}

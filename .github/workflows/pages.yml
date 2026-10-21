@@ -36,7 +36,7 @@ jobs:
           if-no-files-found: ignore
       - run: |
           mkdir _site
-          cp index.html style.css app.js media.js demo.js icons.js playback.js sw.js manifest.webmanifest _site/
+          cp index.html style.css app.js auth.js media.js demo.js icons.js playback.js sw.js manifest.webmanifest _site/
           cp -r assets vendor _site/
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3

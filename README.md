@@ -70,7 +70,19 @@ The manifest uses relative paths so repository subpaths work. The app has its ow
 
 No static reader can promise **all Reddit content or every external media format**. Reddit may deny anonymous JSON requests, browser CORS access, hosted networks, NSFW data, private communities, or expired tokens. Restrictions cannot be bypassed by GitHub Pages. Live availability has not been verified in the authoring environment. See [Reddit developer access information](https://support.reddithelp.com/hc/en-us/articles/14945211791892-Developer-Platform-Accessing-Reddit-Data) and [API documentation](https://www.reddit.com/dev/api/).
 
-Users with approved Reddit API access can paste a bearer token into **Preferences → Reddit connection → Connect & verify**. Relay verifies identity, or read access for tokens without the identity scope, before using it. Tokens are sent only to `oauth.reddit.com`. By default the token stays in memory and disappears on reload. **Remember on this device** explicitly opts into local storage under `relay.access-token`; backups exclude it. Disconnect deletes it. Relay cannot create access tokens: obtain one through your approved Reddit API application’s OAuth flow. Never enter a password/client secret. Relay does not implement OAuth registration, token issuance, or renewal. A token does not guarantee mature-content access. There is no public CORS proxy and no backend.
+## Connect with Reddit automatically
+
+1. In Settings → Reddit connection, open **Create or manage Reddit API app**.
+2. Register an **installed app** with Reddit (API approval may be required).
+3. Copy the exact **Redirect URI** shown in Relay into the Reddit app settings. For this deployment it is `https://mikolajwichrowski.github.io/reddit-relay/` — keep the trailing slash.
+4. Paste the app’s **Client ID** into Relay and select **Connect with Reddit**.
+5. Approve read/identity permission on Reddit. Relay receives the bearer token on return, validates its one-time state, removes it from the address bar, and starts using it.
+
+This uses Reddit’s documented [installed-app implicit OAuth flow](https://github.com/reddit-archive/reddit/wiki/OAuth2#authorization-implicit-grant-flow). Installed apps have **no client secret**. Web/script apps cannot use this flow; secret-based token exchange and background refresh need a private server and are outside this static app. Never paste a secret into the client-ID or access-token fields.
+
+Client ID is saved locally under `relay.client-id`. OAuth state stays in session storage for at most ten minutes and is consumed once. Stay in the same browser context when returning from Reddit; an installed PWA and Safari may have separate storage. Tokens stay in memory unless **Remember on this device** is selected. Remembered tokens and their expiry are stored under `relay.access-token` and `relay.token-expires`, excluded from backups. Disconnect removes the token; Clear local data also removes client ID. Temporary tokens expire; reconnect to obtain a new one. There is no automatic refresh or bypass of Reddit API approval/content restrictions.
+
+You can still paste and verify an existing bearer token. Token requests are made only to `oauth.reddit.com`; this app never asks for your Reddit password. Real Reddit authorization depends on your approved client; browser tests mock the permission redirect and callback rather than using a real account.
 
 ## Inline playback and sound
 
@@ -84,7 +96,7 @@ Sound is **off by default**. The feed sound control, per-player button, Preferen
 
 Bookmarks, community names, and preferences use `localStorage` under `relay.v1`. Saved post text and media URLs remain on this device until cleared; clearing browser data removes them. A backup contains saved content and should be treated as personal data. Cross-device sync is intentionally absent.
 
-The service worker caches only the same-origin application shell and bundled playback libraries using the browser’s Cache Storage API (required for offline PWA behavior). It does not cache API responses, access tokens, or external media. After the first successful visit, the shell and saved post metadata work offline; new feeds, images, videos, and comments require internet access. Browser updates activate once old app tabs close. Bump `relay-shell-v3` in `sw.js` when changing the cache contents.
+The service worker caches only the same-origin application shell and bundled playback libraries using the browser’s Cache Storage API (required for offline PWA behavior). It does not cache API responses, access tokens, or external media. After the first successful visit, the shell and saved post metadata work offline; new feeds, images, videos, and comments require internet access. Browser updates activate once old app tabs close. Bump `relay-shell-v4` in `sw.js` when changing the cache contents.
 
 No analytics or application server. Network requests go directly to Reddit, chosen media providers, Unsplash for demo photos. Supported third-party embeds load when scrolled into view, connecting directly to their provider. The UI uses system fonts without font-service requests.
 
