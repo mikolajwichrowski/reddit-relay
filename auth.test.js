@@ -19,3 +19,10 @@ test('OAuth callback validates state, request age, token type, expiry and read s
  assert.throws(()=>readCallback(hash.replace('identity%20read','identity'),pending,2000));
  assert.throws(()=>readCallback('#error=access_denied&state=nonce',pending,2000),/cancelled/);
 });
+
+test('confidential app requests use the fixed private broker and validate returned codes',async()=>{
+ const {brokerStartURL,brokerExchangeURL,BROKER_ORIGIN}=await import('./auth.js');
+ const state='a'.repeat(64),pending={state,provider:'broker',createdAt:1000};const start=new URL(brokerStartURL('existing_id',state,'web'));assert.equal(start.origin,BROKER_ORIGIN);assert.equal(start.searchParams.get('type'),'web');assert.equal(start.searchParams.has('client_secret'),false);
+ assert.equal(new URL(brokerExchangeURL('code=code&state='+state,pending,2000)).origin,BROKER_ORIGIN);
+ assert.throws(()=>brokerExchangeURL('code=code&state=wrong',pending,2000));assert.throws(()=>brokerExchangeURL('code=code&state='+state,pending,700000));assert.throws(()=>brokerStartURL('existing_id',state,'unknown'));
+});

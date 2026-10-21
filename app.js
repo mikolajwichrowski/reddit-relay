@@ -2,7 +2,7 @@ import {decode, safeURL, mediaFor, listingURL} from './media.js';
 import {demoPosts} from './demo.js';
 import {icon,labelIcon} from './icons.js';
 import {createPlayback} from './playback.js';
-import {authorizationURL,readCallback} from './auth.js';
+import {authorizationURL,readCallback,brokerStartURL,brokerExchangeURL} from './auth.js';
 const $ = s => document.querySelector(s);
 const KEY = 'relay.v1';
 const defaults = {adult:false,blur:true,dark:false,compact:false,soundOn:false,communities:['EarthPorn','CozyPlaces','technology','AskReddit'],saved:[]};
@@ -13,6 +13,12 @@ const TOKEN_KEY='relay.access-token';
 let tokenExpiresAt=0,authNotice='',tokenRemembered=false;
 try { token=localStorage.getItem(TOKEN_KEY)||'';tokenExpiresAt=Number(localStorage.getItem('relay.token-expires'))||0;if(tokenExpiresAt&&tokenExpiresAt<=Date.now()){token='';localStorage.removeItem(TOKEN_KEY);localStorage.removeItem('relay.token-expires');authNotice='Your Reddit token expired. Connect again in Settings.';} } catch {}
 tokenRemembered=!!token;
+let brokerNavigation=false;
+const codeQuery=new URLSearchParams(location.search);
+if((codeQuery.has('code')||codeQuery.has('error'))&&codeQuery.has('state')){
+ history.replaceState(null,'',location.pathname+location.hash);
+ try{const pending=JSON.parse(sessionStorage.getItem('relay.oauth-pending')||'null');const exchange=brokerExchangeURL(codeQuery.toString(),pending);if(exchange){brokerNavigation=true;location.replace(exchange);}}catch(error){sessionStorage.removeItem('relay.oauth-pending');authNotice=error.message;}
+}
 const callbackParams=new URLSearchParams(location.hash.slice(1));
 if(callbackParams.has('access_token')||callbackParams.has('error')){
  history.replaceState(null,'',location.pathname+location.search);
@@ -142,11 +148,12 @@ $('#token').value=token;$('#remember-token').checked=tokenRemembered;
 $('#connection-state').textContent=token?(tokenExpiresAt?'Connected':'Token saved'):'Not connected';
 const redirectUri=new URL('./',location.href).href;
 $('#redirect-uri').value=redirectUri;
-try{$('#client-id').value=localStorage.getItem('relay.client-id')||'';}catch{}
+try{$('#client-id').value=localStorage.getItem('relay.client-id')||'';const type=localStorage.getItem('relay.app-type');if(['web','script','installed'].includes(type))$('#app-type').value=type;}catch{}
+$('#app-type').onchange=()=>{try{localStorage.setItem('relay.app-type',$('#app-type').value);}catch{}};
 $('#client-id').onchange=()=>{try{localStorage.setItem('relay.client-id',$('#client-id').value.trim());}catch{$('#oauth-status').textContent='Client ID could not be saved on this device.';}};
 $('#copy-redirect').onclick=async()=>{try{await navigator.clipboard.writeText(redirectUri);$('#oauth-status').textContent='Redirect URI copied.';}catch{$('#redirect-uri').select();$('#oauth-status').textContent='Select and copy the redirect URI shown above.';}};
 $('#oauth-connect').onclick=()=>{
- try{const clientId=$('#client-id').value.trim();const state=Array.from(crypto.getRandomValues(new Uint8Array(32)),byte=>byte.toString(16).padStart(2,'0')).join('');const url=authorizationURL(clientId,redirectUri,state);localStorage.setItem('relay.client-id',clientId);sessionStorage.setItem('relay.oauth-pending',JSON.stringify({state,createdAt:Date.now(),remember:$('#remember-token').checked}));location.assign(url);}catch(error){$('#oauth-status').textContent=error.message;}
+ try{const clientId=$('#client-id').value.trim();const state=Array.from(crypto.getRandomValues(new Uint8Array(32)),byte=>byte.toString(16).padStart(2,'0')).join('');const type=$('#app-type').value;const provider=type==='installed'?'reddit':'broker';const url=provider==='reddit'?authorizationURL(clientId,redirectUri,state):brokerStartURL(clientId,state,type);localStorage.setItem('relay.client-id',clientId);localStorage.setItem('relay.app-type',type);sessionStorage.setItem('relay.oauth-pending',JSON.stringify({state,provider,createdAt:Date.now(),remember:$('#remember-token').checked}));location.assign(url);}catch(error){$('#oauth-status').textContent=error.message;}
 };
 if(authNotice){$('#oauth-status').textContent=authNotice;$('#settings').showModal();setOverlayTab('settings');playback.refresh();}
 $('#show-token').onclick=()=>{const show=$('#token').type==='password';$('#token').type=show?'text':'password';$('#show-token').textContent=show?'Hide':'Show';};
@@ -171,7 +178,7 @@ $('#connect-token').onclick=async()=>{
 $('#disconnect-token').onclick=()=>{tokenRequest?.abort();tokenRequest=null;token='';tokenExpiresAt=0;$('#token').value='';$('#remember-token').checked=false;saveToken();$('#connect-token').disabled=false;$('#connection-state').textContent='Not connected';$('#token-status').textContent='Disconnected. Token removed from this device.';if(!demo&&!savedView)load();};
 $('#export').onclick=()=>{const url=URL.createObjectURL(new Blob([JSON.stringify(prefs,null,2)],{type:'application/json'}));const a=element('a',{href:url,download:'relay-backup.json'});a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
 $('#import').onchange=async e=>{try{const file=e.target.files[0];if(!file)return;if(file.size>5*1024*1024)throw Error('Backup must be under 5 MB.');prefs=validate(JSON.parse(await file.text()));persist();applyPrefs();playback.syncSound();if(savedView)posts=prefs.saved;render();$('#settings-status').textContent='Local data imported.';}catch(err){$('#settings-status').textContent=err.message;}finally{e.target.value='';}};
-$('#clear').onclick=()=>{if(!confirm('Remove all saved posts and preferences from this device?'))return;tokenRequest?.abort();tokenRequest=null;$('#connect-token').disabled=false;prefs=structuredClone(defaults);token='';tokenExpiresAt=0;$('#token').value='';$('#remember-token').checked=false;saveToken();localStorage.removeItem('relay.client-id');sessionStorage.removeItem('relay.oauth-pending');$('#client-id').value='';$('#connection-state').textContent='Not connected';persist();applyPrefs();if(savedView)posts=[];render();$('#settings-status').textContent='Local data cleared.';};
+$('#clear').onclick=()=>{if(!confirm('Remove all saved posts and preferences from this device?'))return;tokenRequest?.abort();tokenRequest=null;$('#connect-token').disabled=false;prefs=structuredClone(defaults);token='';tokenExpiresAt=0;$('#token').value='';$('#remember-token').checked=false;saveToken();localStorage.removeItem('relay.client-id');localStorage.removeItem('relay.app-type');sessionStorage.removeItem('relay.oauth-pending');$('#client-id').value='';$('#connection-state').textContent='Not connected';persist();applyPrefs();if(savedView)posts=[];render();$('#settings-status').textContent='Local data cleared.';};
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();installPrompt=e;$('#install').hidden=false;});$('#install').onclick=async()=>{if(!installPrompt)return;await installPrompt.prompt();installPrompt=null;$('#install').hidden=true;};window.addEventListener('appinstalled',()=>$('#install').hidden=true);
 function setOverlayTab(tab){if(tab===undefined)tab=$('#settings').open?'settings':$('#community-sheet').open?'communities':undefined;
  $('#communities-nav').classList.toggle('active',tab==='communities');$('#mobile-settings').classList.toggle('active',tab==='settings');
@@ -187,4 +194,4 @@ const savedCount=$('#saved-count');labelIcon($('#saved-nav'),'bookmark','Saved')
 $('#search-form>span').replaceChildren(icon('search'));
 document.querySelectorAll('.close').forEach(b=>labelIcon(b,'close',''));
 if('serviceWorker'in navigator)navigator.serviceWorker.register('./sw.js').catch(()=>message('Offline support could not start. Use HTTPS or localhost.'));
-applyPrefs();load();
+applyPrefs();if(!brokerNavigation)load();

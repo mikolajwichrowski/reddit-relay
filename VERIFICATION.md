@@ -16,3 +16,7 @@ Reddit responses and media are fixtures in the browser layout checks. Native aut
 ## iOS chrome and OAuth update
 
 Unit tests cover OAuth URL construction, mismatched/missing state, expired requests, cancellation, token type, expiry, and read permissions. Browser checks also pass a simulated Reddit permission redirect through the real app, verify the token is received, strip the fragment, consume state, and disconnect. Dark-theme status-bar metadata and the Reddit app-registration link are asserted. The iOS safe-area background is opaque and the root/theme color is restored before rendering; physical Dynamic Island behavior is not tested in Chromium.
+
+## Existing-client authentication service
+
+The owner-private service is deployed with Sites. Its tests cover code exchange, refresh reuse, script client credentials, encrypted cookies, fixed return URLs, identity, bad Origin/CSRF, tampering, and state rejection. The reader’s browser test simulates the broker round trip through a query-code callback and final fragment token, then verifies address-bar cleanup. Live Reddit credentials were not supplied, so real account authorization is not verified.
